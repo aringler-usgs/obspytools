@@ -3,7 +3,7 @@
 import argparse
 import sys
 import math
-import argparse
+
 
 import numpy
 import matplotlib.mlab
@@ -19,6 +19,7 @@ from obspy.signal import pazToFreqResp
 #the response
 #
 #Here are the current methods
+#getcmdline()
 #getdata()
 #getcpow()
 #getpaz()
@@ -28,45 +29,44 @@ from obspy.signal import pazToFreqResp
 nfft = 4096*8
 noverlap = 2048*4
 
-parser = argparse.ArgumentParser(description='Code to compare a calibration to the response')
+def getcmdline():
+#This function gets the command line values to parse
+	parser = argparse.ArgumentParser(description='Code to compare a calibration to the response')
 
-parser.add_argument('-s','--sensor', type = str, action = "store", dest="sensorType", \
-	default = '', help="Type of Sensor", required = False)
+#Here is the type of sensor we have
+	parser.add_argument('-s','--sensor', type = str, action = "store", dest="sensorType", \
+		default = '', help="Type of Sensor", required = False)
 
-parser.add_argument('-np','--normPeriod',type = float, action = "store", dest="normPeriod", \
-	default = 10, help="Period to Normalize Calibrations", required = False)
+#Here is the period we want to normalize at
+	parser.add_argument('-np','--normPeriod',type = float, action = "store", dest="normPeriod", \
+		default = 10, help="Period to Normalize Calibrations", required = False)
 
-parser.add_argument('-v','--verbose',action = "store_true", dest = "debug", \
-	default = False, help="Run in verbose mode")
+#Here we get metadata RESP
+	parser.add_argument('-mdResp','--metaDataResp', type = str, action = "store", dest="respFile", \
+		default = '', help="Location of Response file", required = False)
 
-parser.add_argument('-cIn','--calIn',type = str, action = "store", dest="inputData", \
-	default = '', help="Calibration input channel data", required = True)
+#Allows for verbose output
+	parser.add_argument('-v','--verbose',action = "store_true", dest = "debug", \
+		default = False, help="Run in verbose mode")
 
-parser.add_argument('-cOut','--calOut',type = str, action = "store", dest = "outputData", \
-	default = '', help="Calibration output channel data", required = True)
+	parser.add_argument('-cIn','--calIn',type = str, action = "store", dest="inputData", \
+		default = '', help="Calibration input channel data", required = True)
 
-parser.add_argument('-cc','--capacitive',action = "store_true", dest = "capCal", \
-	default = False, help="Allows for a capacitive calibration")
+	parser.add_argument('-cOut','--calOut',type = str, action = "store", dest = "outputData", \
+		default = '', help="Calibration output channel data", required = True)
 
-parser.add_argument('-st','--starttime',type = str, action = "store", dest = "stime", \
-	default = '', help="Start time of calibration: YYYY-MM-DDTHH:MM:SS.S", required = True)
+	parser.add_argument('-cc','--capacitive',action = "store_true", dest = "capCal", \
+		default = False, help="Allows for a capacitive calibration")
 
-parser.add_argument('-d','--duration', type = int, action = "store", dest = "duration", \
-	default = 0, help="Duration of cal in seconds", required = True)
+	parser.add_argument('-st','--starttime',type = str, action = "store", dest = "stime", \
+		default = '', help="Start time of calibration: YYYY-MM-DDTHH:MM:SS.S", required = True)
 
+	parser.add_argument('-d','--duration', type = int, action = "store", dest = "duration", \
+		default = 0, help="Duration of cal in seconds", required = True)
 
+	parserval = parser.parse_args()
 
-parserval = parser.parse_args()
-
-#User input variables
-debug = parserval.debug
-#stime = UTCDateTime("2013-03-13T19:37:00.0")
-#duration = 4*60*60
-
-
-
-stime = UTCDateTime(parserval.stime)
-etime = stime + parserval.duration
+	return parserval
 
 def getdata(dataloc,starttime,endtime):
 #A function to read in the data and trim it down
@@ -74,20 +74,27 @@ def getdata(dataloc,starttime,endtime):
 		print 'Data location: ' + dataloc
 		print 'start time: ' + str(starttime)
 		print 'end time: ' + str(endtime)
-	data = read(dataloc,starttime=starttime,endtime=endtime)
-	if debug:
-		print 'First part of data read done'
-	data.merge()
-	data = data[0]
-	
+	try:
+		data = read(dataloc,starttime=starttime,endtime=endtime)
+		if debug:
+			print 'First part of data read done'
+		data.merge()
+		data = data[0]
+	except:
+		print 'Unable to read in the data'
+		sys.exit(0)
 	return data
 
 def getcpow(data1,data2):
 #This function computes the cross-power
-	cpow, fre = matplotlib.mlab.csd(data1.data,data2.data, NFFT=nfft, \
-	noverlap = noverlap, Fs = data1.stats.sampling_rate)
-	cpow = cpow[1:]
-	fre = fre[1:]
+	try:
+		cpow, fre = matplotlib.mlab.csd(data1.data,data2.data, NFFT=nfft, \
+		noverlap = noverlap, Fs = data1.stats.sampling_rate)
+		cpow = cpow[1:]
+		fre = fre[1:]
+	except:
+		print 'Unable to compute power spectra'
+		sys.exit(0)	
 	return cpow, fre
 
 def getpaz(sensor):
@@ -103,22 +110,27 @@ def getpaz(sensor):
 			-0.036614 - 0.037059j, -32.55 + 0j, -142.0 + 0j, -364.0  + 404.0j, 
 			-364.0 - 404.0j, -1260.0 + 0j, -4900.0 + 5204.0j, -4900.0 - 5204.0j, 
 			-7100.0 + 1700.0j, -7100.0 - 1700.0j], 'sensitivity': 2.017500*10**9}
+	
 	elif sensor == 'STS-2HG':
 		paz = {'gain': 5.96806*10**7, 'zeros': [0, 0], 'poles': [-0.035647 - 0.036879j,  
 			-0.035647 + 0.036879j, -251.33, -131.04 - 467.29j, -131.04 + 467.29j],
 			'sensitivity': 3.355500*10**10}
+
 	elif sensor == 'STS-4B':
 		paz = {'gain': 5.96806*10**7, 'zeros': [0, 0], 'poles': [-0.035647 - 0.036879j,  
 			-0.035647 + 0.036879j, -251.33, -131.04 - 467.29j, -131.04 + 467.29j],
 			'sensitivity': 2.5166*10**9}
+
 	elif sensor == 'CMG-3T':
 		paz = {'gain': 5.71508*10**8, 'zeros': [0, 0], 'poles': [-0.037008 - 0.037008j,  
 			-0.037008 + 0.037008j, -502.65, -1005.0, -1131.0],
 			'sensitivity': 3.3554*10**10}
+
 	elif sensor == 'KS-54000':
 		paz = {'gain': 86298.5, 'zeros': [0, 0], 'poles': [-59.4313,  
 			-22.7121 + 27.1065j, -22.7121 + 27.1065j, -0.0048004, -0.073199],
 			'sensitivity': 3.3554*10**9}
+
 	elif sensor == '151-120':
 		paz = {'gain': 60828500, 'zeros': [0, 0, -18.18], 'poles': [-772.03,  
 			-20.9581, -180.3310 + 189.922j, -180.3310 - 189.922j, 
@@ -132,44 +144,92 @@ def getpaz(sensor):
 	return paz
 
 
+def getRespFromModel(pazModel,nfft,delta,norm):
+#This function returns the response without normalization
+	resp = pazToFreqResp(pazModel['poles'],pazModel['zeros'],1, \
+		tracein.stats.delta, nfft, freq=False)
+	resp = resp[1:]
+	return resp
+
+
+
+def getMetaDataResp(respFileLoc,norm,nfft,delta):
+#This function returns the metadata response as normalized
+	resp=0
+	phase=0
+	return resp,phase
+
+def getbestfitresp():
+#This function returns the best-fit response as normalized
+
+
+	return resp
+
+
+
+
+def getCalResp(fre,pIn,pOut,pInpOut,cap,norm):
+#This function returns the response from the calibration
+	if cap:
+		resp = 10*numpy.log10((((2*math.pi*fre)**2)* (pOut/pIn)).real)
+		phase = numpy.unwrap(numpy.angle((2*math.pi*fre)* pInpOut/pin))*180/math.pi
+	else:
+		resp = 10*numpy.log10((pOut/pIn).real)
+		phase = numpy.unwrap(numpy.angle(pInpOut))*180/math.pi
+
+#Normalize the resp and phase
+	resp = resp - resp[norm]
+	phase = phase - phase[norm]
+	return resp,phase
+
+
+def respToFAP(resp,norm):
+#This function returns the phase in degrees and the amp in dB
+#Convert the amplitude response to dB
+	respAmp = 20*numpy.log10(abs(resp))
+	respAmp = respAmp - respAmp[norm]
+
+#Convert the phase response to degrees
+	respPhase = numpy.unwrap(numpy.angle(resp))*180/math.pi
+	respPhase = respPhase - respPhase[norm]
+
+	return respAmp, respPhase
+
 
 
 #Here is where we start the program
 
+#Run the command line parser
+parserval = getcmdline()
+
+#User input variables
+debug = parserval.debug
+
+#Here are the start and end times
+stime = UTCDateTime(parserval.stime)
+etime = stime + parserval.duration
 
 
-try:
 #Read in the data
-	tracein = getdata(parserval.inputData,stime,etime)
-	traceout = getdata(parserval.outputData,stime,etime)
-	
-except:
-	print 'Can not read mSeed data'
-	sys.exit(0)
+tracein = getdata(parserval.inputData,stime,etime)
+traceout = getdata(parserval.outputData,stime,etime)
 
-try:
-	pinpout, fre = getcpow(tracein,traceout)
-	pout, fre = getcpow(traceout, traceout)
-	pin, fre = getcpow(tracein, tracein)
-except:
-	print 'Can not compute the spectra'
-	sys.exit(0)
+#Lets compute the power spectra
+pinpout, fre = getcpow(tracein,traceout)
+pout, fre = getcpow(traceout, traceout)
+pin, fre = getcpow(tracein, tracein)
+
 
 period = 1/fre
 #Lets find the normalization index
 indexNormPeriod = numpy.argmin(numpy.abs(period - parserval.normPeriod))
 
 #Check if the cal is resistive or not
-if parserval.capCal:
-	resp = 10*numpy.log10((((2*math.pi*fre)**2)* pout/pin).real)
-	phase = numpy.unwrap(numpy.angle((2*math.pi*fre)* pinpout))*180/math.pi
-else:
-	resp = 10*numpy.log10((pout/pin).real)
-	phase = numpy.unwrap(numpy.angle(pinpout))*180/math.pi
+respCal, phaseCal = getCalResp(fre,pin,pout,pinpout,parserval.capCal,indexNormPeriod)
 
-#Normalize the resp and phase
-resp = resp - resp[indexNormPeriod]
-phase = phase - phase[indexNormPeriod]
+if parserval.respFile:
+	respMetaData,phaseMetaData = getMetaDataResp(parserval.respFile,tracein.stats.delta,nfft,indexNormPeriod)
+
 
 #Get the response of the sensor
 if parserval.sensorType:
@@ -179,17 +239,9 @@ if parserval.sensorType:
 	pazresp = getpaz(sensorType)
 
 #Now lets convert this to a FAP listing
-	tfpaz= pazToFreqResp(pazresp['poles'],pazresp['zeros'],1, \
-		tracein.stats.delta, nfft, freq=False)
-	tfpaz = tfpaz[1:]
+	tfresp = getRespFromModel(pazresp,nfft,tracein.stats.delta,indexNormPeriod)
+	tfamp,tfPhase = respToFAP(tfresp,indexNormPeriod)
 
-#Convert the amplitude response to dB
-	tfamp = 20*numpy.log10(abs(tfpaz))
-	tfamp = tfamp - tfamp[indexNormPeriod]
-
-#Convert the phase response to degrees
-	tfPhase = numpy.unwrap(numpy.angle(tfpaz))*180/math.pi
-	tfPhase = tfPhase -tfPhase[indexNormPeriod]
 
 else:
 	if debug:
@@ -206,14 +258,15 @@ titleString = traceout.stats.network + ' ' + traceout.stats.station + ' ' + \
 plt.figure()
 plt.subplot(211)
 plt.title(titleString,fontsize=12)
-p1=plt.semilogx(period,resp,'b',label='Calibration')
+p1=plt.semilogx(period,respCal,'b',label='Calibration')
 if parserval.sensorType:
 	p2=plt.semilogx(period,tfamp,'k',label='Nominal')
 plt.xlim(1.2*min(period),max(period))
+plt.ylim(-5,5)
 plt.ylabel('Amplitude (dB)')
 plt.legend(prop={'size':12})
 plt.subplot(212)
-p2=plt.semilogx(period,phase,'b',label='Calibration')
+p2=plt.semilogx(period,phaseCal,'b',label='Calibration')
 if parserval.sensorType:
 	p3=plt.semilogx(period,tfPhase,'k',label='Nominal')
 plt.xlim(1.2*min(period),max(period))
