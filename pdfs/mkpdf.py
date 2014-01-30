@@ -112,9 +112,20 @@ for tr in st:
 try:
 	if debug:
 		print 'Saving the PDF'
-	ppsd.plot(filename="PDF" + st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
+	ppsd.plot(show_percentiles=True,percentiles=[50], filename="PDF" + \
+		st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
 		str(st[0].stats.starttime.julday).zfill(3) + ".jpg",
 		show = True, show_histogram=True, grid= False, show_coverage=False)
+#Get the 50th percentile	
+	per,perval = ppsd.get_percentile(percentile=50,hist_cum=None)
+#Save it to a file	
+	perFile = open("MEDIAN" + \
+		st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
+		str(st[0].stats.starttime.julday).zfill(3), 'w')
+	for index, val in enumerate(per):
+		perFile.write(str("%.2f" % val) + ',' + str(perval[index]) + '\n')
+	perFile.close()
+	 
 		
 except:
 	'No PPSD saved'
