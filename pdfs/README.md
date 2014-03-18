@@ -20,10 +20,11 @@ optional arguments:
   -v, --verbose         Run in verbose mode
   -d DATA [DATA ...], --data DATA [DATA ...]
                         Data for PDF
-  -len LEN              Length of PSD window default=0.5
-  -overlap OVERLAP      Overlap default=0.5
-  -minper MINPER        Lower period limit default=0.01
-  -maxper MAXPER        Upper period limit default=1000.0
+  -len LEN              Length of PSD window in seconds default=3600 s
+  -overlap OVERLAP      Overlap of windows default=0.5
+  -minper MINPER        Lower period limit default=0.01 s
+  -maxper MAXPER        Upper period limit default=1000.0 s
+
 
 
 Output

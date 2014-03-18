@@ -86,16 +86,16 @@ parser.add_argument('-v','--verbose',action = "store_true", dest = "debug", \
 parser.add_argument('-d','--data',type = str, nargs='+', action = "store", dest = "data", \
 	default = '', help="Data for PDF", required = True)
 
-parser.add_argument('-len', type = int, action = "store", default=3600, help="Length of PSD window default=0.5", \
+parser.add_argument('-len', type = int, action = "store", default=3600, help="Length of PSD window in seconds default=3600 s", \
 	required=False, dest = "len")
 
-parser.add_argument('-overlap', type = float, action = "store", default=0.5, help="Overlap default=0.5", \
+parser.add_argument('-overlap', type = float, action = "store", default=0.5, help="Overlap of windows default=0.5", \
 	required=False, dest = "overlap")
 
-parser.add_argument('-minper', type = float, action = "store", default=0.01, help="Lower period limit default=0.01", \
+parser.add_argument('-minper', type = float, action = "store", default=0.01, help="Lower period limit default=0.01 s", \
 	required=False, dest = "minper")
 
-parser.add_argument('-maxper', type = float, action = "store", default=1000.0, help="Upper period limit default=1000.0", \
+parser.add_argument('-maxper', type = float, action = "store", default=1000.0, help="Upper period limit default=1000.0 s", \
 	required=False, dest = "maxper")
 
 parserval = parser.parse_args()
@@ -123,22 +123,35 @@ except:
 	'Unable to read the data'
 	sys.exit()
 
+if debug:
+	for tr in st:
+		print 'Here is the data stream: ' + str(tr)		
+		
+	print 'Here is the window length of your PSDs: ' + str(parserval.len)
+	print 'Here is the overlap: ' + str(parserval.overlap)
+
+
 #Make the PDF
 ppsd = PPSD(st[0].stats,paz=pazval,ppsd_length=parserval.len,overlap=parserval.overlap)
 for tr in st:
 	ppsd.add(tr)
-try:
 	if debug:
-		print 'Saving the PDF'
-	ppsd.plot(show_percentiles=True,percentiles=[50], filename="PDF" + \
-		st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
-		str(st[0].stats.starttime.julday).zfill(3) + ".jpg",
+		for pdftime in ppsd.times:
+			print 'Here is what is in the PDF: ' + str(pdftime)
+try:
+	pdfstring = "PDF" + st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
+		str(st[0].stats.starttime.julday).zfill(3) + ".jpg"
+	medianstring = "MEDIAN" + st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
+		str(st[0].stats.starttime.julday).zfill(3)
+	if debug:
+		print 'Saving the PDF to : ' + pdfstring
+		print 'Saving the median to : ' + medianstring
+	
+	ppsd.plot(show_percentiles=True,percentiles=[50], filename=pdfstring,
 		show = True, show_histogram=True, grid= False, show_coverage=False, \
 		period_lim=(parserval.minper,parserval.maxper))
 	per,perval = ppsd.get_percentile(percentile=50,hist_cum=None)
-	perFile = open("MEDIAN" + \
-		st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
-		str(st[0].stats.starttime.julday).zfill(3), 'w')
+	perFile = open(medianstring, 'w')
 	for index, val in enumerate(per):
 		perFile.write(str("%.2f" % val) + ',' + str(perval[index]) + '\n')
 	perFile.close()
