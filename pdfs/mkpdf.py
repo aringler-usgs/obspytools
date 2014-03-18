@@ -31,6 +31,11 @@ def getpaz(sensor):
 			-0.036614 - 0.037059j, -32.55 + 0j, -142.0 + 0j, -364.0  + 404.0j, 
 			-364.0 - 404.0j, -1260.0 + 0j, -4900.0 + 5204.0j, -4900.0 - 5204.0j, 
 			-7100.0 + 1700.0j, -7100.0 - 1700.0j], 'sensitivity': 2.017500*10**9}
+	elif sensor == 'TC-Reftek':
+		paz = {'gain': 8.184*10**11, 'zeros': [0 + 0j, 0 + 0j, -434.1 + 0j],
+			'poles':[-0.03691 + 0.03712j, -0.03691 - 0.03712j, -371.2 + 0j,
+			-373.9  + 475.5j, -373.9 - 475.5j, -588.4 + 1508.0j, -588.4 - 1508.0j], 
+			'sensitivity': 4.7143*10**8}
 	elif sensor == 'STS-2HG':
 		paz = {'gain': 5.96806*10**7, 'zeros': [0, 0], 'poles': [-0.035647 - 0.036879j,  
 			-0.035647 + 0.036879j, -251.33, -131.04 - 467.29j, -131.04 + 467.29j],
@@ -72,13 +77,26 @@ parser = argparse.ArgumentParser(description='Program to make PDF plot')
 
 parser.add_argument('-s','--sensor', type = str, action = "store", dest="sensorType", \
 	default = '', help="Type of Sensor  possible sensors include: " + "STS-1 " + "M2166 " + \
-	"151-120 " + "KS-54000 " + "STS-4B " + "CMG-3T " + "STS-2HG " + "T-120 ", required = False)
+	"151-120 " + "KS-54000 " + "STS-4B " + "CMG-3T " + "STS-2HG " + "T-120 " + "TC-Reftek " \
+	, required = False)
 
 parser.add_argument('-v','--verbose',action = "store_true", dest = "debug", \
 	default = False, help="Run in verbose mode")
 
 parser.add_argument('-d','--data',type = str, nargs='+', action = "store", dest = "data", \
 	default = '', help="Data for PDF", required = True)
+
+parser.add_argument('-len', type = int, action = "store", default=3600, help="Length of PSD window default=0.5", \
+	required=False, dest = "len")
+
+parser.add_argument('-overlap', type = float, action = "store", default=0.5, help="Overlap default=0.5", \
+	required=False, dest = "overlap")
+
+parser.add_argument('-minper', type = float, action = "store", default=0.01, help="Lower period limit default=0.01", \
+	required=False, dest = "minper")
+
+parser.add_argument('-maxper', type = float, action = "store", default=1000.0, help="Upper period limit default=1000.0", \
+	required=False, dest = "maxper")
 
 parserval = parser.parse_args()
 
@@ -106,7 +124,7 @@ except:
 	sys.exit()
 
 #Make the PDF
-ppsd = PPSD(st[0].stats,paz=pazval)
+ppsd = PPSD(st[0].stats,paz=pazval,ppsd_length=parserval.len,overlap=parserval.overlap)
 for tr in st:
 	ppsd.add(tr)
 try:
@@ -115,10 +133,9 @@ try:
 	ppsd.plot(show_percentiles=True,percentiles=[50], filename="PDF" + \
 		st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
 		str(st[0].stats.starttime.julday).zfill(3) + ".jpg",
-		show = True, show_histogram=True, grid= False, show_coverage=False)
-#Get the 50th percentile	
+		show = True, show_histogram=True, grid= False, show_coverage=False, \
+		period_lim=(parserval.minper,parserval.maxper))
 	per,perval = ppsd.get_percentile(percentile=50,hist_cum=None)
-#Save it to a file	
 	perFile = open("MEDIAN" + \
 		st[0].stats.station + st[0].stats.channel + str(st[0].stats.starttime.year)+ \
 		str(st[0].stats.starttime.julday).zfill(3), 'w')
@@ -129,4 +146,5 @@ try:
 		
 except:
 	'No PPSD saved'
+
 		
