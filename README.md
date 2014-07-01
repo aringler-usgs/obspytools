@@ -16,6 +16,8 @@ readmetadata is a program for reading pieces of metadata
 
 dataconvert has various programs for converting data types
 
+selfnoise is a program for calculating self-noise using the Sleeman method
+
 
 To Do
 ========
