@@ -12,13 +12,15 @@ randcal is a first cut at a random calibration routine
 
 pdfs is a simple ultility to make pdfs
 
+readmetadata is a program for reading pieces of metadata
+
+dataconvert has various programs for converting data types
+
 
 To Do
 ========
 
 Setup a common response library between the programs
-
-Merge with mseedpythontools
 
 Document better
 
