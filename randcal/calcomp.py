@@ -23,6 +23,8 @@ from obspy.signal import pazToFreqResp
 #getdata()
 #getcpow()
 #getpaz()
+#
+#Need to add calibration blockettes
 ###############################################################################
 
 #Semi fixed stuff
