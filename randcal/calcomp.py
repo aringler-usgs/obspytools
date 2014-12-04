@@ -3,7 +3,9 @@
 import argparse
 import sys
 import math
-
+import struct
+import os
+import stat
 
 import numpy
 import matplotlib.mlab
@@ -61,14 +63,60 @@ def getcmdline():
 		default = False, help="Allows for a capacitive calibration")
 
 	parser.add_argument('-st','--starttime',type = str, action = "store", dest = "stime", \
-		default = '', help="Start time of calibration: YYYY-MM-DDTHH:MM:SS.S", required = True)
+		default = '', help="Start time of calibration: YYYY-MM-DDTHH:MM:SS.S", required = False)
 
 	parser.add_argument('-d','--duration', type = int, action = "store", dest = "duration", \
-		default = 0, help="Duration of cal in seconds", required = True)
+		default = 0, help="Duration of cal in seconds", required = False)
+
+	parser.add_argument('-cb',action = "store_true",dest = "calblock", \
+		default = False, help="Use calibration blockette time")
 
 	parserval = parser.parse_args()
 
 	return parserval
+
+def get_calibrations(file_name):
+	calibrations = []
+
+	#Read the first file and get the record length from blockette 1000
+	fh = open(file_name, 'rb')
+	record = fh.read(256)
+	index = struct.unpack('>H', record[46:48])[0]
+	file_stats = os.stat(file_name)
+	record_length = 2 ** struct.unpack('>B', record[index+6:index+7])[0]
+	
+	#Get the total number of records
+	total_records = file_stats[stat.ST_SIZE] / record_length
+	
+	#Now loop through the records and look for calibration blockettes
+	for rec_idx in xrange(0,total_records):
+		fh.seek(rec_idx * record_length,0)
+		record = fh.read(record_length)
+		next_blockette = struct.unpack('>H', record[46:48])[0]
+		while next_blockette != 0:
+			index = next_blockette
+			blockette_type, next_blockette = struct.unpack('>HH', record[index:index+4])	
+			if blockette_type in (300, 310, 320, 390):
+				if debug:
+					print 'We have a calibration blockette'
+				year,jday,hour,minute,sec,_,tmsec,_,cal_flags,duration = tuple(struct.unpack('>HHBBBBHBBL', record[index+4:index+20]))
+				stime = UTCDateTime(year=year,julday=jday,hour=hour,minute=minute,second=sec)
+				if debug:
+					print(stime.ctime())
+				if blockette_type == 300:
+					step_count,_,_,ntrvl_duration,amplitude,cal_input = struct.unpack('>BBLLf3s', record[index+14:index+31])
+					calibrations.append({'type':'step','amplitude': amplitude,'number':step_count,'start_time':stime,'duration':duration/10000,'inteveral_duration':ntrvl_duration})
+				if blockette_type == 310:
+					signal_period,amplitude,cal_input = struct.unpack('>ff3s', record[index+20:index+31])
+					calibrations.append({'type':'sine','amplitude': amplitude, 'period': signal_period,'start_time':stime,'duration':duration/10000})
+				if blockette_type in (320, 390):
+					amplitude,cal_input = struct.unpack('>f3s', record[index+20:index+27])
+					calibrations.append({'type':'random','amplitude': amplitude,'start_time':stime,'duration':duration/10000})
+	fh.close()
+	return calibrations
+
+
+
 
 def getdata(dataloc,starttime,endtime):
 #A function to read in the data and trim it down
@@ -201,84 +249,101 @@ def respToFAP(resp,norm):
 
 #Here is where we start the program
 
-#Run the command line parser
-parserval = getcmdline()
+if __name__ == "__main__":
 
-#User input variables
-debug = parserval.debug
+	#Run the command line parser
+	parserval = getcmdline()
 
-#Here are the start and end times
-stime = UTCDateTime(parserval.stime)
-etime = stime + parserval.duration
+	#User input variables
+	debug = parserval.debug
+	
+	if parserval.calblock:
+		calibrations = get_calibrations(parserval.outputData)
+		found_cal = False
+		for cals in calibrations:
+			if cals['type'] == 'random':
+				stime = cals['start_time']
+				etime = stime + cals['duration']
+				found_cal = True
+		if not found_cal:
+			print 'Unable to find calibration blockette'
+			sys.exit()
+	else:	
+	#Here are the start and end times
+		try:
+			stime = UTCDateTime(parserval.stime)
+			etime = stime + parserval.duration
+		except:
+			print 'Unable to get start time'
+			sys.exit()
 
+	#Read in the data
+	tracein = getdata(parserval.inputData,stime,etime)
+	traceout = getdata(parserval.outputData,stime,etime)
 
-#Read in the data
-tracein = getdata(parserval.inputData,stime,etime)
-traceout = getdata(parserval.outputData,stime,etime)
-
-#Lets compute the power spectra
-pinpout, fre = getcpow(tracein,traceout)
-pout, fre = getcpow(traceout, traceout)
-pin, fre = getcpow(tracein, tracein)
-
-
-period = 1/fre
-#Lets find the normalization index
-indexNormPeriod = numpy.argmin(numpy.abs(period - parserval.normPeriod))
-
-#Check if the cal is resistive or not
-respCal, phaseCal = getCalResp(fre,pin,pout,pinpout,parserval.capCal,indexNormPeriod)
-
-if parserval.respFile:
-	respMetaData,phaseMetaData = getMetaDataResp(parserval.respFile,tracein.stats.delta,nfft,indexNormPeriod)
-
-
-#Get the response of the sensor
-if parserval.sensorType:
-	sensorType = parserval.sensorType
-	if debug:
-		print 'We are using a sensor of type: ' + sensorType
-	pazresp = getpaz(sensorType)
-
-#Now lets convert this to a FAP listing
-	tfresp = getRespFromModel(pazresp,nfft,tracein.stats.delta,indexNormPeriod)
-	tfamp,tfPhase = respToFAP(tfresp,indexNormPeriod)
+	#Lets compute the power spectra
+	pinpout, fre = getcpow(tracein,traceout)
+	pout, fre = getcpow(traceout, traceout)
+	pin, fre = getcpow(tracein, tracein)
 
 
-else:
-	if debug:
-		print 'No sensor type found'
-	sensorType = ''
+	period = 1/fre
+	#Lets find the normalization index
+	indexNormPeriod = numpy.argmin(numpy.abs(period - parserval.normPeriod))
+
+	#Check if the cal is resistive or not
+	respCal, phaseCal = getCalResp(fre,pin,pout,pinpout,parserval.capCal,indexNormPeriod)
+
+	if parserval.respFile:
+		respMetaData,phaseMetaData = getMetaDataResp(parserval.respFile,tracein.stats.delta,nfft,indexNormPeriod)
 
 
-#Create a string for the title
-titleString = traceout.stats.network + ' ' + traceout.stats.station + ' ' + \
-	traceout.stats.location + ' ' + traceout.stats.channel + ' ' + \
-	sensorType + ' ' + str(stime.year) + ' ' + str(stime.julday).zfill(3)
+	#Get the response of the sensor
+	if parserval.sensorType:
+		sensorType = parserval.sensorType
+		if debug:
+			print 'We are using a sensor of type: ' + sensorType
+		pazresp = getpaz(sensorType)
 
-#Plot the results
-plt.figure()
-plt.subplot(211)
-plt.title(titleString,fontsize=12)
-p1=plt.semilogx(period,respCal,'b',label='Calibration')
-if parserval.sensorType:
-	p2=plt.semilogx(period,tfamp,'k',label='Nominal')
-plt.xlim(1.2*min(period),max(period))
-plt.ylim(-5,5)
-plt.ylabel('Amplitude (dB)')
-plt.legend(prop={'size':12})
-plt.subplot(212)
-p2=plt.semilogx(period,phaseCal,'b',label='Calibration')
-if parserval.sensorType:
-	p3=plt.semilogx(period,tfPhase,'k',label='Nominal')
-plt.xlim(1.2*min(period),max(period))
-plt.ylim(-180,180)
-plt.xlabel('Time (s)')
-plt.ylabel('Phase (deg)')
-plt.legend(prop={'size':12})
-plt.savefig(traceout.stats.network + traceout.stats.station + traceout.stats.location + \
-	traceout.stats.channel + str(stime.year) + str(stime.julday).zfill(3) +  \
-	'.jpg', format = 'jpeg', dpi=400)
+	#Now lets convert this to a FAP listing
+		tfresp = getRespFromModel(pazresp,nfft,tracein.stats.delta,indexNormPeriod)
+		tfamp,tfPhase = respToFAP(tfresp,indexNormPeriod)
+
+
+	else:
+		if debug:
+			print 'No sensor type found'
+		sensorType = ''
+
+
+	#Create a string for the title
+	titleString = traceout.stats.network + ' ' + traceout.stats.station + ' ' + \
+		traceout.stats.location + ' ' + traceout.stats.channel + ' ' + \
+		sensorType + ' ' + str(stime.year) + ' ' + str(stime.julday).zfill(3)
+
+	#Plot the results
+	plt.figure()
+	plt.subplot(211)
+	plt.title(titleString,fontsize=12)
+	p1=plt.semilogx(period,respCal,'b',label='Calibration')
+	if parserval.sensorType:
+		p2=plt.semilogx(period,tfamp,'k',label='Nominal')
+	plt.xlim(1.2*min(period),max(period))
+	plt.ylim(-5,5)
+	plt.ylabel('Amplitude (dB)')
+	plt.legend(prop={'size':12})
+	plt.subplot(212)
+	p2=plt.semilogx(period,phaseCal,'b',label='Calibration')
+	if parserval.sensorType:
+		p3=plt.semilogx(period,tfPhase,'k',label='Nominal')
+	plt.xlim(1.2*min(period),max(period))
+	plt.ylim(-180,180)
+	plt.xlabel('Time (s)')
+	plt.ylabel('Phase (deg)')
+	plt.legend(prop={'size':12})
+	plt.savefig(traceout.stats.network + traceout.stats.station + traceout.stats.location + \
+		traceout.stats.channel + str(stime.year) + str(stime.julday).zfill(3) +  \
+		'.jpg', format = 'jpeg', dpi=400)
 
 
 
