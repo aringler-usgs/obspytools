@@ -16,7 +16,7 @@ from obspy.core import UTCDateTime
 ###############################################################################
 
 #Here are the fixed variables
-website = 'http://comcat.cr.usgs.gov/fdsnws/event/1/query?'
+website = 'http://earthquake.usgs.gov/fdsnws/event/1/query?'
 
 #Lets setup the command line parser
 parser = argparse.ArgumentParser(description='Code to get earthquake info')
