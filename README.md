@@ -18,6 +18,8 @@ dataconvert has various programs for converting data types
 
 selfnoise is a program for calculating self-noise using the Sleeman method
 
+estgain  is a program to compare the gain of two sensors in the mid-band
+
 
 To Do
 ========
