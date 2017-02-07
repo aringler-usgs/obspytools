@@ -39,7 +39,7 @@ default = 2.5, help= "Minimum magnitude", type = float, required = False)
 
 #Here is the maximum magnitude to search over
 parser.add_argument('-MM','--MaxMag',action="store",dest = "maxMag", \
-default = 9.0, help= "Minimum magnitude", type = float, required = False)
+default = 9.9, help= "Minimum magnitude", type = float, required = False)
 
 #We probably want to search over depth also
 parser.add_argument('-md','--mindep',action="store",dest = "minDep", \
