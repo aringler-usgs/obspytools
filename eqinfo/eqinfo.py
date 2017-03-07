@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from obspy.core.event import readEvents
+from obspy.core.event import read_events
 from obspy.core import UTCDateTime
 
 ###############################################################################
@@ -16,7 +16,7 @@ from obspy.core import UTCDateTime
 ###############################################################################
 
 #Here are the fixed variables
-website = 'http://earthquake.usgs.gov/fdsnws/event/1/query?'
+website = 'https://earthquake.usgs.gov/fdsnws/event/1/query?'
 
 #Lets setup the command line parser
 parser = argparse.ArgumentParser(description='Code to get earthquake info')
@@ -91,7 +91,7 @@ if debug:
 querystring = website + stimeString + '&' + etimeString + searchParameter
 
 #Lets read it in a quakeML format
-cat = readEvents(querystring)
+cat = read_events(querystring)
 
 #Now lets scan through and print out the results
 for event in cat:
