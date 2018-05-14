@@ -80,8 +80,8 @@ if parserval.time:
 	etime = stime + parserval.number*24*60*60 
 
 #Lets format for the USGS webservices
-stimeString = 'starttime=' + (stime.formatIRISWebService()).replace('T','%20')
-etimeString = 'endtime=' + (etime.formatIRISWebService()).replace('T','%20')
+stimeString = 'starttime=' + (stime.format_iris_web_service()).replace('T','%20')
+etimeString = 'endtime=' + (etime.format_iris_web_service()).replace('T','%20')
 
 if debug:
 	print 'Start time string: ' + stimeString
