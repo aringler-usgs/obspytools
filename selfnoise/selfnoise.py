@@ -3,11 +3,12 @@ import argparse
 import sys
 import math
 import pickle
-import numpy
+import numpy as np
 
 from obspy.core import UTCDateTime, read, Stream
-from obspy.signal import pazToFreqResp, PPSD
-from obspy.signal.spectral_estimation import get_NLNM, get_NHNM
+from obspy.signal import PPSD
+from obspy.signal.invsim import paz_to_freq_resp 
+from obspy.signal.spectral_estimation import get_nlnm, get_nhnm
 from matplotlib.mlab import csd
 from math import pi
 from matplotlib.pyplot import (figure,axes,plot,xlabel,ylabel,title,subplot,legend,savefig,show,xscale, xlim)
@@ -28,7 +29,7 @@ def getpaz(sensor):
 #Output is a paz object
 	debugpaz = False
 	if debugpaz:
-		print 'Sensor type: ' + sensor
+		print('Sensor type: ' + sensor)
 	if sensor == 'T-120':
 		paz = {'gain': 8.318710*10**17, 'zeros': [0 + 0j, 0 + 0j, -31.63 + 0j, 
 			-160.0 + 0j, -350.0 + 0j, -3177.0 + 0j], 'poles':[-0.036614 + 0.037059j,  
@@ -82,9 +83,9 @@ def getpaz(sensor):
 	return paz
 
 def computeresp(resp,delta,lenfft):
-	respval = pazToFreqResp(resp['poles'],resp['zeros'],resp['sensitivity'],t_samp = delta, 
+	respval = paz_to_freq_resp(resp['poles'],resp['zeros'],resp['sensitivity'],t_samp = delta, 
 		nfft=lenfft,freq = False)
-	respval = numpy.absolute(respval*numpy.conjugate(respval))
+	respval = np.absolute(respval*np.conjugate(respval))
 	respval = respval[1:]
 	return respval
 
@@ -127,8 +128,6 @@ def choptocommon(stream):
 	if debug:
 		print(stream)
 	return stream
-
-
 
 
 def getargs():
@@ -196,9 +195,9 @@ else:
 
 #Get the response
 if debug:
-	print 'Here is the sensor 1:' + parserval.sensorType1
-	print 'Here is the sensor 2:' + parserval.sensorType2
-	print 'Here is the sensor 3:' + parserval.sensorType3
+	print('Here is the sensor 1:' + parserval.sensorType1)
+	print('Here is the sensor 2:' + parserval.sensorType2)
+	print('Here is the sensor 3:' + parserval.sensorType3)
 
 
 try:
@@ -206,7 +205,7 @@ try:
 	pazval2 = getpaz(parserval.sensorType2)
 	pazval3 = getpaz(parserval.sensorType3)
 except:
-	print 'Can not get the responses for the instruments'
+	print('Can not get the responses for the instruments')
 	sys.exit()
 
 
@@ -216,28 +215,28 @@ try:
 	st = Stream()
 	for dataString in parserval.data1:
 		if debug:
-			print 'Reading in the data trace 1:' + dataString
+			print('Reading in the data trace 1:' + dataString)
 		st += read(dataString)
 	for dataString in parserval.data2:
 		if debug:
-			print 'Reading in the data trace 2:' + dataString
+			print('Reading in the data trace 2:' + dataString)
 		st += read(dataString)
 	for dataString in parserval.data3:
 		if debug:
-			print 'Reading in the data trace 3:' + dataString
+			print('Reading in the data trace 3:' + dataString)
 		st += read(dataString)
 
 	st.merge()
 
 except:
-	'Unable to read the data'
+	print('Unable to read the data')
 	sys.exit()
 
 if debug:
 	for tr in st:
-		print 'Here is the data stream: ' + str(tr)	
-	print 'Here is the window length of your PSDs: ' + str(parserval.len)
-	print 'Here is the overlap: ' + str(parserval.overlap)
+		print('Here is the data stream: ' + str(tr))
+	print('Here is the window length of your PSDs: ' + str(parserval.len))
+	print('Here is the overlap: ' + str(parserval.overlap))
 
 
 st = choptocommon(st)
@@ -248,25 +247,25 @@ try:
 	inst2resp = computeresp(pazval2,delta,parserval.len)
 	inst3resp = computeresp(pazval3,delta,parserval.len)
 
-	(p11, fre1) = cp(st[0],st[0],parserval.len,parserval.overlap,delta)
-	(p22, fre1) = cp(st[1],st[1],parserval.len,parserval.overlap,delta)
-	(p33, fre1) = cp(st[2],st[2],parserval.len,parserval.overlap,delta)
+	p11, _ = cp(st[0],st[0],parserval.len,parserval.overlap,delta)
+	p22, _ = cp(st[1],st[1],parserval.len,parserval.overlap,delta)
+	p33, _ = cp(st[2],st[2],parserval.len,parserval.overlap,delta)
 
-	(p21, fre1) = cp(st[1],st[0],parserval.len,parserval.overlap,delta)
-	(p13, fre1) = cp(st[0],st[2],parserval.len,parserval.overlap,delta)
-	(p23, fre1) = cp(st[1],st[2],parserval.len,parserval.overlap,delta)
+	p21, _ = cp(st[1],st[0],parserval.len,parserval.overlap,delta)
+	p13, _ = cp(st[0],st[2],parserval.len,parserval.overlap,delta)
+	p23, fre1 = cp(st[1],st[2],parserval.len,parserval.overlap,delta)
 
 
 	n11 = ((2*pi*fre1)**2)*(p11 - p21*p13/p23)/inst1resp
-	n22 = ((2*pi*fre1)**2)*(p22 - numpy.conjugate(p23)*p21/numpy.conjugate(p13))/inst2resp
-	n33 = ((2*pi*fre1)**2)*(p33 - p23*numpy.conjugate(p13)/p21)/inst3resp
+	n22 = ((2*pi*fre1)**2)*(p22 - np.conjugate(p23)*p21/np.conjugate(p13))/inst2resp
+	n33 = ((2*pi*fre1)**2)*(p33 - p23*np.conjugate(p13)/p21)/inst3resp
 except:
-	print 'Unable to compute the spectra'
+	print('Unable to compute the spectra')
 	sys.exit()
 
 
-NLNMper,NLNMpower = get_NLNM()
-NHNMper,NHNMpower = get_NHNM()
+NLNMper,NLNMpower = get_nlnm()
+NHNMper,NHNMpower = get_nhnm()
 
 
 titlelegend = 'Self-Noise: ' + str(st[0].stats.starttime.year) + ' ' + str(st[0].stats.starttime.julday) + ' ' + \
@@ -275,17 +274,17 @@ str(st[0].stats.starttime.hour) + ':' + str(st[0].stats.starttime.minute) + ':' 
 noiseplot = figure(1)
 subplot(1,1,1)
 title(titlelegend,fontsize=12)
-plot(1/fre1,10*numpy.log10(((2*pi*fre1)**2)*p11/inst1resp),'r',label='PSD ' + st[0].stats.station + ' ' + \
+plot(1/fre1,10*np.log10(np.abs(((2*pi*fre1)**2)*p11/inst1resp)),'r',label='PSD ' + st[0].stats.station + ' ' + \
 st[0].stats.location + ' ' + st[0].stats.channel + ' ' + parserval.sensorType1)
-plot(1/fre1,10*numpy.log10(((2*pi*fre1)**2)*p22/inst2resp),'b',label='PSD ' + st[1].stats.station + ' ' + \
+plot(1/fre1,10*np.log10(np.abs(((2*pi*fre1)**2)*p22/inst2resp)),'b',label='PSD ' + st[1].stats.station + ' ' + \
 st[1].stats.location + ' ' + st[1].stats.channel + ' ' + parserval.sensorType2)
-plot(1/fre1,10*numpy.log10(((2*pi*fre1)**2)*p33/inst3resp),'g',label='PSD ' + st[2].stats.station + ' ' + \
+plot(1/fre1,10*np.log10(np.abs(((2*pi*fre1)**2)*p33/inst3resp)),'g',label='PSD ' + st[2].stats.station + ' ' + \
 st[2].stats.location + ' ' + st[2].stats.channel + ' ' + parserval.sensorType3)
-plot(1/fre1,10*numpy.log10(n11),'r:',label='Noise ' + st[0].stats.station + ' ' + st[0].stats.location + ' ' + \
+plot(1/fre1,10*np.log10(np.abs(n11)),'r:',label='Noise ' + st[0].stats.station + ' ' + st[0].stats.location + ' ' + \
 st[0].stats.channel + ' ' + parserval.sensorType1)
-plot(1/fre1,10*numpy.log10(n22),'b:',label='Noise ' + st[1].stats.station + ' ' + st[1].stats.location + ' ' + \
+plot(1/fre1,10*np.log10(np.abs(n22)),'b:',label='Noise ' + st[1].stats.station + ' ' + st[1].stats.location + ' ' + \
 st[1].stats.channel + ' ' + parserval.sensorType2)
-plot(1/fre1,10*numpy.log10(n33),'g:',label='Noise ' + st[2].stats.station + ' ' + st[2].stats.location + ' ' + \
+plot(1/fre1,10*np.log10(np.abs(n33)),'g:',label='Noise ' + st[2].stats.station + ' ' + st[2].stats.location + ' ' + \
 st[2].stats.channel + ' ' + parserval.sensorType3)
 plot(NLNMper,NLNMpower,'k')
 plot(NHNMper,NHNMpower,'k')
@@ -293,7 +292,7 @@ legend(prop={'size':12})
 xlabel('Period (s)')
 ylabel('Power rel. 1 (m/s^2)^2/Hz')
 xscale('log')
-xlim((numpy.amin(1/fre1), numpy.amax(1/fre1) ))
+xlim((np.amin(1/fre1), np.amax(1/fre1) ))
 savefig('NOISE' + str(st[0].stats.starttime.year) + str(st[0].stats.starttime.julday) + \
 	str(st[0].stats.starttime.hour) + str(st[0].stats.starttime.minute) + \
 st[0].stats.station + st[0].stats.location + st[0].stats.channel + \
@@ -307,7 +306,7 @@ st[2].stats.station + st[2].stats.location + st[2].stats.channel + \
 titlelegend = 'Time Series: ' + str(st[0].stats.starttime.year) + ' ' + str(st[0].stats.starttime.julday) + ' ' + \
 str(st[0].stats.starttime.hour) + ':' + str(st[0].stats.starttime.minute) + ':' + str(st[0].stats.starttime.second) + \
 ' ' + str(st[0].stats.npts*delta) + ' seconds'
-tval=numpy.arange(0,st[0].stats.npts / st[0].stats.sampling_rate, st[0].stats.delta)
+tval=np.arange(0,st[0].stats.npts / st[0].stats.sampling_rate, st[0].stats.delta)
 tseriesplot = figure(2)
 title(titlelegend,fontsize=12)
 
@@ -315,20 +314,20 @@ subplot(311)
 title(titlelegend,fontsize=12)
 plot(tval,st[0].data,'r',label='TSeries ' + st[0].stats.station + ' ' + \
 st[0].stats.location + ' ' + st[0].stats.channel + ' ' + parserval.sensorType1)
-legend(prop={'size':12})
-xlim((0, numpy.amax(tval) ))
+legend(prop={'size':12}, loc=2)
+xlim((0, np.amax(tval) ))
 subplot(312)
 plot(tval,st[1].data,'b',label='TSeries ' + st[1].stats.station + ' ' + \
 st[1].stats.location + ' ' + st[1].stats.channel + ' ' + parserval.sensorType2)
-legend(prop={'size':12})
-xlim((0, numpy.amax(tval) ))
+legend(prop={'size':12}, loc=2)
+xlim((0, np.amax(tval) ))
 subplot(313)
 plot(tval,st[2].data,'g',label='TSeries ' + st[2].stats.station + ' ' + \
 st[2].stats.location + ' ' + st[2].stats.channel  + ' ' + parserval.sensorType3)
 xlabel('Time (s)')
 ylabel('Counts')
-legend(prop={'size':12})
-xlim((0, numpy.amax(tval) ))
+legend(prop={'size':12}, loc=2)
+xlim((0, np.amax(tval) ))
 savefig('TSERIES' + str(st[0].stats.starttime.year) + str(st[0].stats.starttime.julday) + \
 	str(st[0].stats.starttime.hour) + str(st[0].stats.starttime.minute) + \
 st[0].stats.station + st[0].stats.location + st[0].stats.channel + \
